@@ -3,8 +3,10 @@
 #![allow(clippy::unused_async)]
 use loco_rs::prelude::*;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::models::_entities::templates::{ActiveModel, Entity, Model};
+use tera::{Context, Tera};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Params {
@@ -47,6 +49,25 @@ pub async fn update(
     format::json(item)
 }
 
+pub async fn render(
+    Path(id): Path<i32>,
+    State(ctx): State<AppContext>,
+    Json(body): Json<Value>,
+) -> Result<String> {
+    let template = load_item(&ctx, id).await?;
+    render_template_with_context(&*template.content.unwrap(), body)
+}
+
+fn render_template_with_context(template_str: &str, context_json: Value) -> Result<String> {
+    let tera = match Tera::one_off(template_str, &Context::from_value(context_json)?, false) {
+        Ok(rendered) => rendered,
+        Err(err) => return Err(Error::from(err)),
+    };
+    Ok(tera)
+}
+
+
+
 pub async fn remove(Path(id): Path<i32>, State(ctx): State<AppContext>) -> Result<()> {
     load_item(&ctx, id).await?.delete(&ctx.db).await?;
     format::empty()
@@ -64,4 +85,5 @@ pub fn routes() -> Routes {
         .add("/:id", get(get_one))
         .add("/:id", delete(remove))
         .add("/:id", post(update))
+        .add("/:id/render", post(render))
 }
