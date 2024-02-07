@@ -13,7 +13,7 @@ impl MigrationTrait for Migration {
             .create_table(
                 table_auto(Templates::Table)
                     .col(pk_auto(Templates::Id).borrow_mut())
-                    .col(text_null(Templates::Content).borrow_mut())
+                    .col(text(Templates::Content).borrow_mut())
                     .to_owned(),
             )
             .await

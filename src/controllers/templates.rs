@@ -7,10 +7,26 @@ use serde_json::Value;
 
 use crate::models::_entities::templates::{ActiveModel, Entity, Model};
 use tera::{Context, Tera};
+use k8s_openapi::api::batch::v1::Job;
+use k8s_openapi::api::core::v1::{PersistentVolume, Pod};
+
+use kube::{
+    api::{Api, DeleteParams, ListParams, Patch, PatchParams, PostParams, ResourceExt},
+    runtime::wait::{await_condition, conditions, conditions::is_pod_running},
+    Client,
+};
+
+use axum::{
+    extract,
+    http::StatusCode,
+    response::{Html, IntoResponse, Response},
+    routing::{get, post},
+    Router,
+};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Params {
-    pub content: Option<String>,
+    pub content: String,
     }
 
 impl Params {
@@ -55,7 +71,30 @@ pub async fn render(
     Json(body): Json<Value>,
 ) -> Result<String> {
     let template = load_item(&ctx, id).await?;
-    render_template_with_context(&*template.content.unwrap(), body)
+    render_template_with_context(&*template.content, body)
+}
+
+pub async fn create_job(
+    Path(id): Path<i32>,
+    State(ctx): State<AppContext>,
+    Json(body): Json<Value>,
+) -> Result<String> {
+    let template = load_item(&ctx, id).await?;
+    // let user = match res {
+    //     Ok(user) => user,
+    //     Err(err) => {
+    //         tracing::info!(
+    //             message = err.to_string(),
+    //             user_email = &params.email,
+    //             "could not register user",
+    //         );
+    //         return format::json(());
+    //     }
+    // };
+    let job = render_template_with_context(&*template.content, body);
+
+    let client = Client::try_default().await?;
+    let jobs: Api<Job> = Api::default_namespaced(client);
 }
 
 fn render_template_with_context(template_str: &str, context_json: Value) -> Result<String> {
@@ -86,4 +125,30 @@ pub fn routes() -> Routes {
         .add("/:id", delete(remove))
         .add("/:id", post(update))
         .add("/:id/render", post(render))
+        .add("/:id/createjob", post(create_job))
 }
+
+
+struct KubeError(kube::Error);
+
+
+impl IntoResponse for KubeError {
+    fn into_response(self) -> Response {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Something went wrong: {}", self.0),
+        )
+            .into_response()
+    }
+}
+
+// impl<E> From<E> for KubeError
+//     where
+//         E: Into<loco_rs::Error>
+// {
+//     fn from(err: E) -> Self {
+//         loco_rs::Error::string(format!("Kubernetes error: {}", err.into()).clone().as_str())
+//
+//     }
+// }
+//
