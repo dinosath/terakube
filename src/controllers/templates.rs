@@ -1,6 +1,7 @@
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::unnecessary_struct_initialization)]
 #![allow(clippy::unused_async)]
+
 use loco_rs::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -20,19 +21,19 @@ use axum::{
     extract,
     http::StatusCode,
     response::{Html, IntoResponse, Response},
-    routing::{get, post},
+    routing::{get, post, delete},
     Router,
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Params {
     pub content: String,
-    }
+}
 
 impl Params {
     fn update(&self, item: &mut ActiveModel) {
-      item.content = Set(self.content.clone());
-      }
+        item.content = Set(self.content.clone());
+    }
 }
 
 async fn load_item(ctx: &AppContext, id: i32) -> Result<Model> {
@@ -80,21 +81,35 @@ pub async fn create_job(
     Json(body): Json<Value>,
 ) -> Result<String> {
     let template = load_item(&ctx, id).await?;
-    // let user = match res {
-    //     Ok(user) => user,
-    //     Err(err) => {
-    //         tracing::info!(
-    //             message = err.to_string(),
-    //             user_email = &params.email,
-    //             "could not register user",
-    //         );
-    //         return format::json(());
-    //     }
-    // };
-    let job = render_template_with_context(&*template.content, body);
+    let job_str = render_template_with_context(&*template.content, body)?;
 
-    let client = Client::try_default().await?;
+    let client = Client::try_default().await.map_err(|e| {
+        let msg = format!("Failed to create Kubernetes client: {}", e);
+        Error::Message(msg)
+    })?;
+
     let jobs: Api<Job> = Api::default_namespaced(client);
+    // Create the job using the Kubernetes API
+    let post_params = PostParams::default();
+
+    // Deserialize the job string into a Job object
+    let job: Job = match serde_json::from_str(&job_str) {
+        Ok(job) => job,
+        Err(e) => {
+            let msg = format!("Failed to deserialize job: {}", e);
+            return Err(Error::Message(msg));
+        }
+    };
+
+    match jobs.create(&post_params, &job).await {
+        Ok(_) => {
+            Ok("Job created successfully".to_string())
+        }
+        Err(err) => {
+            let msg = format!("Failed to create job: {}", err);
+            Err(Error::Message(msg))
+        }
+    }
 }
 
 fn render_template_with_context(template_str: &str, context_json: Value) -> Result<String> {
@@ -104,7 +119,6 @@ fn render_template_with_context(template_str: &str, context_json: Value) -> Resu
     };
     Ok(tera)
 }
-
 
 
 pub async fn remove(Path(id): Path<i32>, State(ctx): State<AppContext>) -> Result<()> {
@@ -127,28 +141,3 @@ pub fn routes() -> Routes {
         .add("/:id/render", post(render))
         .add("/:id/createjob", post(create_job))
 }
-
-
-struct KubeError(kube::Error);
-
-
-impl IntoResponse for KubeError {
-    fn into_response(self) -> Response {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Something went wrong: {}", self.0),
-        )
-            .into_response()
-    }
-}
-
-// impl<E> From<E> for KubeError
-//     where
-//         E: Into<loco_rs::Error>
-// {
-//     fn from(err: E) -> Self {
-//         loco_rs::Error::string(format!("Kubernetes error: {}", err.into()).clone().as_str())
-//
-//     }
-// }
-//
