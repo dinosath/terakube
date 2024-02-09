@@ -66,7 +66,7 @@ pub async fn update(
     format::json(item)
 }
 
-pub async fn render(
+pub async fn renderById(
     Path(id): Path<i32>,
     State(ctx): State<AppContext>,
     Json(body): Json<Value>,
@@ -75,7 +75,61 @@ pub async fn render(
     render_template_with_context(&*template.content, body)
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+struct RenderTemplateRequest {
+    data: Data,
+    template: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Data {
+    application_name: String,
+    jsonSchemas: Vec<String>,
+}
+pub async fn render(
+    State(ctx): State<AppContext>,
+    Json(body): Json<RenderTemplateRequest>,
+) -> Result<String> {
+    let data = serde_json::to_value(&body.data).unwrap();
+    render_template_with_context(&*body.template, data)
+}
+
 pub async fn create_job(
+    State(ctx): State<AppContext>,
+    Json(body): Json<RenderTemplateRequest>,
+) -> Result<String> {
+    let data = serde_json::to_value(&body.data).unwrap();
+    let job_str = render_template_with_context(&*body.template, data)?;
+
+    let client = Client::try_default().await.map_err(|e| {
+        let msg = format!("Failed to create Kubernetes client: {}", e);
+        Error::Message(msg)
+    })?;
+
+    let jobs: Api<Job> = Api::default_namespaced(client);
+    // Create the job using the Kubernetes API
+    let post_params = PostParams::default();
+
+    // Deserialize the job string into a Job object
+    let job: Job = match serde_json::from_str(&job_str) {
+        Ok(job) => job,
+        Err(e) => {
+            let msg = format!("Failed to deserialize job: {}", e);
+            return Err(Error::Message(msg));
+        }
+    };
+
+    match jobs.create(&post_params, &job).await {
+        Ok(_) => {
+            Ok("Job created successfully".to_string())
+        }
+        Err(err) => {
+            let msg = format!("Failed to create job: {}", err);
+            Err(Error::Message(msg))
+        }
+    }
+}
+pub async fn create_job_by_id(
     Path(id): Path<i32>,
     State(ctx): State<AppContext>,
     Json(body): Json<Value>,
@@ -133,11 +187,13 @@ pub async fn get_one(Path(id): Path<i32>, State(ctx): State<AppContext>) -> Resu
 pub fn routes() -> Routes {
     Routes::new()
         .prefix("templates")
+        .add("/render", post(render))
+        .add("/createjob", post(create_job))
         .add("/", get(list))
         .add("/", post(add))
         .add("/:id", get(get_one))
         .add("/:id", delete(remove))
         .add("/:id", post(update))
-        .add("/:id/render", post(render))
-        .add("/:id/createjob", post(create_job))
+        .add("/:id/render", post(renderById))
+        .add("/:id/createjob", post(create_job_by_id))
 }

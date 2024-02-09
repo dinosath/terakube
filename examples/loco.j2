@@ -1,0 +1,128 @@
+{
+    "apiVersion": "batch/v1",
+    "kind": "Job",
+    "metadata": {
+        "generateName": "loco-generator",
+        "labels": {
+            "app": "terakube"
+        }
+    },
+    "spec": {
+        "template": {
+            "metadata": {
+                "name": "jq-postgres-job"
+            },
+            "spec": {
+                "initContainers": [
+                    {
+                        "name": "jq-init",
+                        "image": "efrecon/jq:1.7.1",
+                        "command": [
+                            "/bin/sh",
+                            "-c",
+                            "echo 'def map_custom_type:\n  if .type == \"string\" then\n    if .format == \"uuid\" then .type = \"uuid\"\n    else\n      .type = \"string\"\n    end\n  elif .type == \"integer\" then\n    if .length <= 255 then .type = \"tiny_integer\"\n    elif .length <= 65535 then .type = \"small_integer\"\n    elif .length <= 4294967295 then .type = \"int\"\n    else .type = \"big_integer\"\n    end\n  elif .type == \"number\" then\n    .type = \"float\"\n  else\n    .\n  end;\n\ndef handle_nullable:\n  if .type | type == \"array\" and index(\"null\") then\n    .type = (.type - [\"null\"] | first) |\n    .nullable = true\n  else\n    .\n  end;\n\ndef generate_loco_command:\n  \"cargo loco generate model \" + .title + \" \" + (.properties | to_entries | map({name: .key} + (.value | handle_nullable | map_custom_type)) | map(.name + \":\" + .type + (if .nullable then \"!\" else \"\" end)) | join(\" \"));\n\ngenerate_loco_command' > /data/jq-functions.jq && cat /data/jq-functions.jq"
+                        ],
+                        "volumeMounts": [
+                            {
+                                "name": "shared-data",
+                                "mountPath": "/data"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "init-loco-script",
+                        "image": "efrecon/jq:1.7.1",
+                        "command": [
+                            "/bin/sh",
+                            "-c",
+                            "cd /data && echo 'LOCO_APP_NAME={{application_name}} LOCO_TEMPLATE=saas loco new' > loco.sh && chmod +x loco.sh && cat loco.sh && ls -l"
+                        ],
+                        "volumeMounts": [
+                            {
+                                "name": "shared-data",
+                                "mountPath": "/data"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "download-schemas",
+                        "image": "efrecon/jq:1.7.1",
+                        "command": [
+                            "/bin/sh",
+                            "-c",
+                            "cd /data && echo \"{{ jsonSchemas | join(sep=',') }}\" | tr ',' '\n' | xargs -n 1 curl -O && ls -l"
+                        ],
+                        "volumeMounts": [
+                            {
+                                "name": "shared-data",
+                                "mountPath": "/data"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "update-loco-script",
+                        "image": "efrecon/jq:1.7.1",
+                        "command": [
+                            "/bin/sh",
+                            "-c",
+                            "cd /data && jq -s -f jq-functions.jq '.' *.json > loco.sh && cat loco.sh"
+                        ],
+                        "volumeMounts": [
+                            {
+                                "name": "shared-data",
+                                "mountPath": "/data"
+                            }
+                        ]
+                    }
+                ],
+                "containers": [
+                    {
+                        "name": "postgres",
+                        "image": "postgres:latest",
+                        "env": [
+                            {
+                                "name": "POSTGRES_DB",
+                                "value": "your_db"
+                            },
+                            {
+                                "name": "POSTGRES_USER",
+                                "value": "your_user"
+                            },
+                            {
+                                "name": "POSTGRES_PASSWORD",
+                                "value": "your_password"
+                            }
+                        ],
+                        "ports": [
+                            {
+                                "containerPort": 5432
+                            }
+                        ]
+                    },
+                    {
+                        "name": "loco",
+                        "image": "ghcr.io/dinosath/loco-cli",
+                        "command": [
+                            "/bin/bash",
+                            "/scripts/generated-script.sh"
+                        ],
+                        "volumeMounts": [
+                            {
+                                "name": "shared-data",
+                                "mountPath": "/data"
+                            }
+                        ]
+                    }
+                ],
+                "volumes": [
+                    {
+                        "name": "shared-data",
+                        "emptyDir": {}
+                    }
+                ],
+                "restartPolicy": "Never"
+            }
+        },
+        "backoffLimit": 4
+    }
+}
