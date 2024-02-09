@@ -25,6 +25,6 @@ def handle_nullable:
   end;
 
 def generate_loco_command:
-  "cargo loco generate model " + .title + " " + (.properties | to_entries | map({name: .key} + (.value | handle_nullable | map_custom_type)) | map(.name + ":" + .type + (if .nullable then "!" else "" end)) | join(" "));
+  "cargo loco generate scaffold " + .title + " " + (.properties | to_entries | map({name: .key} + (.value | handle_nullable | map_custom_type)) | map(.name + ":" + .type + (if .nullable then "!" else "" end)) | join(" "));
 
 generate_loco_command
