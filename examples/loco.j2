@@ -35,7 +35,7 @@
                         "command": [
                             "/bin/sh",
                             "-c",
-                            "cd /data && echo 'LOCO_APP_NAME={{application_name}} LOCO_TEMPLATE=saas loco new' > loco.sh && chmod +x loco.sh && cat loco.sh && ls -l"
+                            "cd /data && echo 'LOCO_APP_NAME={{application_name}} LOCO_TEMPLATE=saas loco new' > loco.sh && chmod +x loco.sh && echo 'cd {{application_name}}' >> loco.sh"
                         ],
                         "volumeMounts": [
                             {
@@ -82,15 +82,15 @@
                         "env": [
                             {
                                 "name": "POSTGRES_DB",
-                                "value": "your_db"
+                                "value": "{{application_name}}_development"
                             },
                             {
                                 "name": "POSTGRES_USER",
-                                "value": "your_user"
+                                "value": "loco"
                             },
                             {
                                 "name": "POSTGRES_PASSWORD",
-                                "value": "your_password"
+                                "value": "loco"
                             }
                         ],
                         "ports": [
@@ -101,12 +101,16 @@
                     },
                     {
                         "name": "loco",
-                        "image": "ghcr.io/dinosath/loco-cli",
+                        "image": "ghcr.io/dinosath/terakube:k8s-integration",
                         "command": [
                             "/bin/bash",
-                            "/scripts/generated-script.sh"
+                            "/data/loco.sh"
                         ],
                         "volumeMounts": [
+                            {
+                                "name": "cargo-target-cache",
+                                "mountPath": "/data/{{application_name}}/target"
+                            },
                             {
                                 "name": "shared-data",
                                 "mountPath": "/data"
@@ -115,6 +119,12 @@
                     }
                 ],
                 "volumes": [
+                    {
+                        "name": "cargo-target-cache",
+                        "persistentVolumeClaim": {
+                            "claimName": "terakube-pvc"
+                        }
+                    },
                     {
                         "name": "shared-data",
                         "emptyDir": {}
