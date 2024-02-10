@@ -34,7 +34,7 @@ jobs:
           file: loco-cli.dockerfile
           push: true
           tags: 1.0
-          labels: ghcr.io/dinosath/loco-cli
+          labels: ghcr.io/dinosath/terakube/loco-cli:1.0
 
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
