@@ -97,14 +97,26 @@
                             {
                                 "containerPort": 5432
                             }
+                        ],
+                        "volumeMounts": [
+                            {
+                                "name": "shared-data",
+                                "mountPath": "/data"
+                            }
+                        ],
+                        "command": [
+                            "sh",
+                            "-c",
+                            "docker-entrypoint.sh postgres & PID=$!; while [ ! -f /data/loco-done ]; do sleep 1; done; kill $PID && wait $PID"
                         ]
                     },
                     {
                         "name": "loco",
-                        "image": "ghcr.io/dinosath/terakube:k8s-integration",
+                        "image": "ghcr.io/dinosath/terakube/loco-cli:1.0",
                         "command": [
                             "/bin/bash",
-                            "/data/loco.sh"
+                            "-c",
+                            "/data/loco.sh && touch /data/loco-done"
                         ],
                         "volumeMounts": [
                             {
