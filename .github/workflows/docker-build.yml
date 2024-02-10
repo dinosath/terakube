@@ -32,7 +32,7 @@ jobs:
           context: .
           file: loco-cli.dockerfile
           push: true
-          tags: loco-cli:latest
+          tags: ghcr.io/terakube/loco-cli:latest
 
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
