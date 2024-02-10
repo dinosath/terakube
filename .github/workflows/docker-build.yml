@@ -26,21 +26,14 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository }}
-
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: loco-cli.dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: 1.0
+          labels: ghcr.io/dinosath/loco-cli
 
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
