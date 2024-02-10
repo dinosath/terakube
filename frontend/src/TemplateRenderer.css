@@ -1,0 +1,14 @@
+/* TemplateRenderer.css */
+.field-pair {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.field-pair input[type="text"] {
+    margin-right: 10px;
+}
+
+.field-pair button {
+    margin-right: 10px;
+}

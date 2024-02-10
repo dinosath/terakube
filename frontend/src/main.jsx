@@ -1,6 +1,8 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import './index.css'
+import TemplateRenderer from './TemplateRenderer'; // Import the new component
+
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -25,8 +27,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </header>
     <div className="logo">
       <h1>Loco: SaaS application</h1>
-      <img src="https://loco.rs/images/logo.png" className="logo" alt="Loco logo" />
+      <TemplateRenderer /> {/* Include the TemplateRenderer component */}
     </div>
+
+
     <footer>
       <ul>
         <li><a href="https://loco.rs?ref=starter" target="_blank">Our Documentation</a></li>
