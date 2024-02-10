@@ -35,7 +35,7 @@
                         "command": [
                             "/bin/sh",
                             "-c",
-                            "cd /data && echo 'LOCO_APP_NAME={{application_name}} LOCO_TEMPLATE=saas loco new' > loco.sh && chmod +x loco.sh && echo 'cd {{application_name}}' >> loco.sh"
+                            "cd /data && echo 'LOCO_APP_NAME={{application_name}} LOCO_TEMPLATE=saas loco new' > loco.sh && chmod +x loco.sh && echo 'cd {{application_name}}' >> loco.sh && echo 'cargo loco generate deployment' >> loco.sh"
                         ],
                         "volumeMounts": [
                             {
@@ -65,7 +65,7 @@
                         "command": [
                             "/bin/sh",
                             "-c",
-                            "cd /data && find ./ -name '*.json' -print0 | xargs -0 -I {} jq -r -f jq-functions.jq {} >> loco.sh && cat loco.sh"
+                            "cd /data && find ./ -name '*.json' -print0 | xargs -0 -I {} jq -r -f jq-functions.jq {} >> loco.sh && echo 'cargo build --release' >> loco.sh && buildah build -t {{application_name}} >> loco.sh && cat loco.sh"
                         ],
                         "volumeMounts": [
                             {
@@ -111,7 +111,7 @@
                         ]
                     },
                     {
-                        "name": "loco",
+                        "name": "generate-loco-project",
                         "image": "ghcr.io/dinosath/terakube/loco-cli:1.0",
                         "command": [
                             "/bin/bash",
@@ -127,6 +127,15 @@
                                 "name": "shared-data",
                                 "mountPath": "/data"
                             }
+                        ]
+                    },
+                    {
+                        "name": "kaniko",
+                        "image": "gcr.io/kaniko-project/executor:latest",
+                        "args": [
+                            "--dockerfile=dockerfile",
+                            "--context=.",
+                            "--destination=ghcr.io/dinosath/your-image:latest"
                         ]
                     }
                 ],
